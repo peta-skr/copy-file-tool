@@ -13,11 +13,31 @@ func main() {
 	src := flag.String("src", "", "コピー元ルート")
 	target := flag.String("target", "", "探すフォルダ")
 	dest := flag.String("dest", "", "コピー先")
+	overwrite := flag.Bool("overwrite", false, "コピー先に同名ファイルがある場合に上書きする")
+
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, `使い方:
+  copy_tool -src <コピー元ルート> -target <探すフォルダ> -dest <コピー先> [オプション]
+
+説明:
+  フォルダA直下の各サブフォルダ内にある <フォルダE名> のファイルを
+  フォルダF/<サブフォルダ名>/ へコピーします。
+
+オプション:
+`)
+		flag.PrintDefaults()
+		fmt.Fprintf(os.Stderr, `
+例:
+  copy_tool -src C:\data -target images -dest D:\backup
+  copy_tool -src C:\data -target images -dest D:\backup -overwrite
+`)
+	}
+
 	flag.Parse()
 
 	// 必須引数のチェック
 	if *src == "" || *target == "" || *dest == "" {
-		fmt.Fprintln(os.Stderr, "使い方: copy_tool -src <フォルダA> -target <フォルダE名> -dest <フォルダF>")
+		fmt.Fprintln(os.Stderr, "使い方: copy_tool -src <コピー元ルート> -target <探すフォルダ> -dest <コピー先> [オプション]")
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -49,7 +69,7 @@ func main() {
 		// コピー先: dest/サブフォルダ/
 		destDir := filepath.Join(*dest, entry.Name())
 
-		c, s, err := copyDir(targetDir, destDir)
+		c, s, err := copyDir(targetDir, destDir, *overwrite)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "コピーエラー (%s): %v\n", entry.Name(), err)
 			continue
@@ -65,8 +85,9 @@ func main() {
 }
 
 // copyDir はsrcDir内のファイルをdestDirへコピーする。
-// 既にdestDirに同名ファイルが存在する場合はスキップする。
-func copyDir(srcDir, destDir string) (copied, skipped int, err error) {
+// overwrite=falseの場合、既にdestDirに同名ファイルが存在する場合はスキップする。
+// overwrite=trueの場合、既存ファイルを上書きする。
+func copyDir(srcDir, destDir string, overwrite bool) (copied, skipped int, err error) {
 	entries, err := os.ReadDir(srcDir)
 	if err != nil {
 		return 0, 0, err
@@ -80,9 +101,8 @@ func copyDir(srcDir, destDir string) (copied, skipped int, err error) {
 
 		destPath := filepath.Join(destDir, entry.Name())
 
-		// 同名ファイルが既に存在する場合はスキップ
 		_, err := os.Stat(destPath)
-		if err == nil {
+		if err == nil && !overwrite {
 			skipped++
 			continue
 		}
